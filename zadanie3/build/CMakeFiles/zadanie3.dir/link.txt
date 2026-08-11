@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/zadanie3.dir/link.d CMakeFiles/zadanie3.dir/main.cpp.o -o zadanie3  /usr/lib/libmavsdk.so.2.12.4

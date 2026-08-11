@@ -1,0 +1,9 @@
+Cel: Pierwsze w Twojej karierze połączenie dwóch światów: asynchronicznego nasłuchu w tle (Telemetria) z twardymi komendami blokującymi (Akcja).
+Wytyczne:
+    Połącz się z dronem.
+    Powołaj do życia obie wtyczki: najpierw Telemetry, potem Action.
+    Włącz radar: Zarejestruj asynchroniczny callback telemetrii, który nasłuchuje pozycji i wypisuje do konsoli tylko wysokość względną maszyny (np. Wysokosc: 2.3 m).
+    Zmuś drona do lotu: Użyj wtyczki Action, aby uzbroić silniki (arm), a następnie wysłać komendę startu (takeoff). Pamiętaj o sprawdzeniu, czy kontroler lotu zaakceptował rozkazy!
+    Usypiaj i obserwuj: Uśpij główny program na 10 sekund. Ponieważ w punkcie 3 uruchomiłeś nasłuch wysokości w tle, przez te 10 sekund Twoja konsola powinna zalać się komunikatami pokazującymi w czasie rzeczywistym, jak dron wznosi się do góry.
+    Lądowanie: Wywołaj z wtyczki dowodzenia komendę land().
+    Ostatnia faza: Uśpij program na kolejne 10 sekund. W konsoli powinieneś teraz widzieć, jak liczby maleją, aż dron dotknie ziemi (wysokość bliska 0 m).

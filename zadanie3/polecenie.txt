@@ -1,0 +1,88 @@
+### 🏭 Scenariusz Misji "Hybryda"
+
+Wyobraź sobie, że dron stoi na zewnętrznym lądowisku bazy (wirtualny Zurych).
+Jego zadaniem jest wystartować i dolecieć w trybie autonomicznym (GPS)
+pod otwartą bramę hangaru nr 4. Następnie maszyna musi "oślepić" nawigację globalną,
+przełączyć się na precyzyjny tryb wektorowy (Offboard), aby wlecieć do środka,
+wykonać skanowanie regału, wylądować i odciąć zasilanie.
+Przez cały ten czas w tle musi czuwać system Failsafe.
+
+### 📋 Wymagania Architektoniczne
+
+1. **Struktura:** Napisz nową klasę (np. `HybridInspector`).
+W sekcji prywatnej użyj inteligentnych wskaźników dla wszystkich czterech wtyczek:
+`Action`, `Telemetry`, `Offboard` oraz `Mission`.
+2. **Inicjalizacja (Konstruktor):**
+* Połącz z portem UDP, znajdź drona i zainicjuj wskaźniki.
+* Zablokuj program, dopóki dron nie złapie fixa GPS (`is_armable`).
+
+
+3. **Failsafe (Zadanie w tle):**
+* Zasubskrybuj stan baterii.
+* Jeśli poziom napięcia spadnie poniżej **10% (0.10f)**,
+system ma natychmiast wyzwolić komendę awaryjną
+**Return to Launch (RTL)** z wtyczki `Action`.
+* *Uwaga inżynieryjna:* W symulatorze bateria nie spadnie tak szybko,
+ale zależy mi, żeby ten asynchroniczny wątek był w kodzie poprawnie zadeklarowany!
+
+
+
+### 🗺️ Etap 1: Nawigacja Globalna (Mission)
+
+Stwórz metodę `flyToHangar()`.
+
+* Maszyna ma uzbroić silniki (bez ręcznego `takeoff`).
+* Wgraj i wystartuj misję składającą się z dwóch poniższych punktów.
+* Zablokuj wątek, aż dron zamelduje zakończenie misji.
+
+**Parametry dla MissionItem:**
+
+* **Punkt 1 (Przelotowy):**
+* `latitude_deg`: 47.3980398
+* `longitude_deg`: 8.5450150
+* `relative_altitude_m`: 15.0f
+* `speed_m_s`: 8.0f
+* `is_fly_through`: true (przeleć gładko)
+
+
+* **Punkt 2 (Brama hangaru - zatrzymanie):**
+* `latitude_deg`: 47.3982000
+* `longitude_deg`: 8.5456000
+* `relative_altitude_m`: 5.0f (dron zniży lot przed bramą)
+* `speed_m_s`: 3.0f (zwolni przed dolotem)
+* `is_fly_through`: false (MUSI się tu twardo zatrzymać,
+bo zaraz zmieniamy tryb lotu!)
+
+
+
+### 🚀 Etap 2: Precyzyjna Inspekcja (Offboard)
+
+Stwórz metodę `performIndoorInspection()`.
+Gdy dron wisi przed bramą hangaru, przejmij nad nim manualną kontrolę wektorową.
+
+1. Zainicjuj tryb z wektorami zerowymi i wystartuj Offboard.
+2. Leć do przodu (w głąb hangaru) z prędkością **4 m/s przez 4 sekundy**.
+3. Zatrzymaj się całkowicie (wektory zerowe) na **2 sekundy**.
+4. Wykonaj manewr skanowania: leć w lewo (oś Y)
+z prędkością **-2 m/s** z jednoczesnym obrotem maszyny wokół własnej
+osi (Yaw) o **45 stopni/s przez 3 sekundy**.
+5. Zatrzymaj maszynę w powietrzu na **3 sekundy**.
+6. Wyłącz tryb Offboard.
+
+### 🛬 Etap 3: Zakończenie
+
+Stwórz metodę `secureLanding()`.
+
+* Zleć lądowanie.
+* Zablokuj wątek na czas opadania maszyny (`in_air`).
+* Wyłącz silniki (`disarm`).
+
+---
+
+W Twoim `main()` chce widzieć tylko wywołanie czterech rzeczy:
+stworzenie obiektu i odpalenie trzech głównych metod.
+
+Masz tu wszystko: inicjalizację, zarządzanie pamięcią,
+wątki poboczne, nawigację satelitarną i wektorową. Daj znać,
+jak poszła kompilacja i czy "Chimera" bezpiecznie wylądowała w hangarze!
+Powodzenia, inżynierze!
