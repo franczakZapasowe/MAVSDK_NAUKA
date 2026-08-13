@@ -1,0 +1,87 @@
+Racja, mój błąd! Skoro wjeżdżamy na poziom ostatecznego sprawdzianu, gdzie **każdy pojedynczy kod** ma być gigantycznym kombajnem integrującym w 100% wszystkie pięć modułów (`Action`, `Telemetry`, `Offboard`, `Mission`, `SQLite3`), to podnosimy poprzeczkę.
+
+Oto dwa potężne scenariusze. W obu musisz powiązać zmienne atomowe, asynchroniczne wątki w tle, zapis do bazy z konkretnymi statusami oraz płynne przełączanie trybów lotu.
+
+---
+
+### WYZWANIE 1: Operacja "Orle Gniazdo" (Globalny dolot, wektorowy skan)
+
+**Scenariusz:** Dron startuje jako maszyna poszukiwawcza. Używając GPS (Mission), leci na dużej wysokości nad wyznaczony cel. Gdy dociera na miejsce, system wyłącza nawigację satelitarną i przechodzi w tryb precyzyjny (Offboard), aby wykonać wektorowy skan terenu (zejście w dół i obrót). Przez cały czas "Czarna Skrzynka" (SQLite3) rejestruje każdą zmianę fazy lotu oraz pozycję.
+
+**Wymagania inżynieryjne (Wszystko w jednej klasie):**
+
+1. **`SQLite3` (Czarna Skrzynka):**
+* Stwórz tabelę `OperationLogs`: `ID`, `Timestamp`, `Phase` (Tekst - np. "START", "TRANSIT", "SCANNING", "LANDING", "RTL"), `Battery`, `Latitude`, `Longitude`, `Altitude`.
+
+
+2. **`Telemetry` (Asynchroniczne Tło):**
+* **Bateria:** Nasłuchuj w tle. Jeśli spadnie poniżej **12%**, natychmiast wrzuć do bazy zapytanie `INSERT` ze statusem `"CRITICAL_RTL"` i wymuś powrót.
+* **GPS (1 Hz):** W tle aktualizuj zmienne atomowe (Szerokość, Długość, Wysokość), aby inne funkcje mogły z nich złożyć zapytanie SQL.
+
+
+3. **`Action` (Inicjalizacja i koniec):**
+* Uzbrój drona. Na samym początku wrzuć log do bazy: `"START"`.
+
+
+4. **`Mission` (Faza 1 - Dolot):**
+* Zaprogramuj trasę z **jednym punktem**: `lat: 47.3980398`, `lon: 8.5450150`, wysokość: **25.0m**, prędkość: **8.0m/s**.
+* Uruchom misję. Wpisz do bazy log: `"TRANSIT"`.
+* Zablokuj wątek główny do czasu, aż dron zgłosi koniec misji.
+
+
+5. **`Offboard` (Faza 2 - Skanowanie):**
+* Po zakończeniu misji wrzuć do bazy log: `"SCANNING"`.
+* Uruchom tryb Offboard.
+* Wykonaj manewr: Zejdź w dół (oś Z: `down_m_s = 2.0f`) przez **5 sekund**.
+* Zatrzymaj zniżanie i wykonaj pełny skan obrotowy (Oś Yaw: `yawspeed_deg_s = 60.0f`, przód, prawo, dół = 0) przez **6 sekund** (da to 360 stopni).
+* Wyłącz Offboard.
+
+
+6. **`Action` (Lądowanie):**
+* Wrzuć do bazy log: `"LANDING"`.
+* Wydaj komendę lądowania, poczekaj aż `in_air` będzie false, po czym rozbrój silniki i w destruktorze zamknij bazę.
+
+
+
+---
+
+### WYZWANIE 2: "Wektorowa Ucieczka i Lot Kurierski" (Odwrócona Hybryda z Geofencingiem)
+
+**Scenariusz:** Dron startuje z trudnego, zadaszonego terenu (np. spod wiaty). System GPS tam głupieje, więc dron musi najpierw wystartować pionowo i na trybie wektorowym (Offboard) wyfrunąć do przodu na otwartą przestrzeń. Dopiero tam łapie satelity, włącza tryb Mission i leci dostarczyć paczkę. Tłem operacji jest aktywny strażnik strefy lotu połączony z bazą danych.
+
+**Wymagania inżynieryjne (Wszystko w jednej klasie):**
+
+1. **`SQLite3` (Audyt Lotu):**
+* Stwórz tabelę `FlightAudit`: `ID`, `Timestamp`, `ViolationType` (Tekst - np. "NONE", "ALT_BREACH", "LOW_BATTERY"), `Latitude`, `Longitude`, `Altitude`.
+
+
+2. **`Action` (Start pionowy):**
+* Tym razem uzbrój silniki i **użyj komendy `takeoff()**`. Zablokuj wątek na 5 sekund, żeby maszyna ustabilizowała się w zawisie.
+
+
+3. **`Offboard` (Faza 1 - Wyjazd z bazy):**
+* Aktywuj Offboard (wystarczy, że dron już wisi).
+* Ustaw wektor przód (`forward_m_s = 4.0f`) przez **4 sekundy**, aby "wyjechać spod wiaty".
+* Zatrzymaj maszynę w powietrzu (wektory zerowe) na **2 sekundy**.
+* Wyłącz Offboard.
+
+
+4. **`Mission` (Faza 2 - Przelot globalny):**
+* Teraz, z punktu w którym dron wisi, stwórz plan misji z dwoma punktami (prędkość w obu 5.0m/s).
+* **Punkt 1:** `lat: 47.3983000`, `lon: 8.5453000`, wysokość: **15.0m** (przelotowy: true).
+* **Punkt 2:** `lat: 47.3985000`, `lon: 8.5458000`, wysokość: **10.0m** (przelotowy: false).
+* Wyślij, wystartuj misję i poczekaj na jej koniec.
+
+
+5. **`Telemetry` (Podwójny Strażnik Asynchroniczny z SQL):**
+* **Strażnik 1 (Bateria):** Jeśli spadnie poniżej 30%, wymuś w locie zapis błędu do bazy SQL: `"LOW_BATTERY"`. (Bez wywoływania RTL, sam zapis alertu).
+* **Strażnik 2 (Wysokość - Geofence):** W callbacku pozycji (`subscribe_position`), dodaj warunek bezpieczeństwa (IF). Jeśli w jakimkolwiek momencie lotu wysokość (`relative_altitude_m`) przekroczy **20.0m**, program ma natychmiast zapisać do bazy SQL błąd `"ALT_BREACH"` oraz wymusić awaryjne przerwanie wszystkiego przez **`Action->land()`**.
+
+
+6. **Koniec:**
+* Po dotarciu do Punktu 2 (lub po interwencji strażnika) rozbrój maszynę, upewnij się, że SQL wypluje log o udanym zapisie, a destruktor poprawnie zwolni `sqlite3_close()`.
+
+
+
+To jest esencja tego, jak programuje się w świecie rzeczywistym. Musisz panować nad 3 niezależnymi wątkami, bazą danych, wskaźnikami systemowymi i 4 różnymi wtyczkami MAVSDK. Wyłącz środowisko, odpocznij, a kiedy wrócisz – masz materiał na solidną, inżynieryjną bitwę.
+

@@ -1,0 +1,46 @@
+### WYZWANIE 1: Operacja "Orle Gniazdo" (Globalny dolot, wektorowy skan)
+
+**Scenariusz:** Dron startuje jako maszyna poszukiwawcza. Używając GPS (Mission),
+leci na dużej wysokości nad wyznaczony cel. Gdy dociera na miejsce, system wyłącza
+nawigację satelitarną i przechodzi w tryb precyzyjny (Offboard), aby wykonać wektorowy
+skan terenu (zejście w dół i obrót). Przez cały czas "Czarna Skrzynka" (SQLite3)
+rejestruje każdą zmianę fazy lotu oraz pozycję.
+
+**Wymagania inżynieryjne (Wszystko w jednej klasie):**
+
+1. **`SQLite3` (Czarna Skrzynka):**
+* Stwórz tabelę `OperationLogs`: `ID`, `Timestamp`, `Phase`
+(Tekst - np. "START", "TRANSIT", "SCANNING", "LANDING", "RTL"), `Battery`, `Latitude`, `Longitude`, `Altitude`.
+
+
+2. **`Telemetry` (Asynchroniczne Tło):**
+* **Bateria:** Nasłuchuj w tle. Jeśli spadnie poniżej **12%**,
+natychmiast wrzuć do bazy zapytanie `INSERT` ze statusem `"CRITICAL_RTL"` i wymuś powrót.
+* **GPS (1 Hz):** W tle aktualizuj zmienne atomowe (Szerokość, Długość, Wysokość),
+aby inne funkcje mogły z nich złożyć zapytanie SQL.
+
+
+3. **`Action` (Inicjalizacja i koniec):**
+* Uzbrój drona. Na samym początku wrzuć log do bazy: `"START"`.
+
+
+4. **`Mission` (Faza 1 - Dolot):**
+* Zaprogramuj trasę z **jednym punktem**: `lat: 47.3980398`, `lon: 8.5450150`,
+wysokość: **25.0m**, prędkość: **8.0m/s**.
+* Uruchom misję. Wpisz do bazy log: `"TRANSIT"`.
+* Zablokuj wątek główny do czasu, aż dron zgłosi koniec misji.
+
+
+5. **`Offboard` (Faza 2 - Skanowanie):**
+* Po zakończeniu misji wrzuć do bazy log: `"SCANNING"`.
+* Uruchom tryb Offboard.
+* Wykonaj manewr: Zejdź w dół (oś Z: `down_m_s = 2.0f`) przez **5 sekund**.
+* Zatrzymaj zniżanie i wykonaj pełny skan obrotowy (Oś Yaw: `yawspeed_deg_s = 60.0f`,
+przód, prawo, dół = 0) przez **6 sekund** (da to 360 stopni).
+* Wyłącz Offboard.
+
+
+6. **`Action` (Lądowanie):**
+* Wrzuć do bazy log: `"LANDING"`.
+* Wydaj komendę lądowania, poczekaj aż `in_air` będzie false, po czym rozbrój silniki i
+w destruktorze zamknij bazę.
