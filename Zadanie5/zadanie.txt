@@ -1,0 +1,46 @@
+### WYZWANIE 2: "Wektorowa Ucieczka i Lot Kurierski" (Odwrócona Hybryda z Geofencingiem)
+
+**Scenariusz:** Dron startuje z trudnego, zadaszonego terenu (np. spod wiaty).
+System GPS tam głupieje, więc dron musi najpierw wystartować pionowo i na trybie wektorowym (Offboard)
+wyfrunąć do przodu na otwartą przestrzeń.
+Dopiero tam łapie satelity, włącza tryb Mission i leci dostarczyć paczkę.
+Tłem operacji jest aktywny strażnik strefy lotu połączony z bazą danych.
+
+**Wymagania inżynieryjne (Wszystko w jednej klasie):**
+
+1. **`SQLite3` (Audyt Lotu):**
+* Stwórz tabelę `FlightAudit`: `ID`, `Timestamp`, `ViolationType`
+(Tekst - np. "NONE", "ALT_BREACH", "LOW_BATTERY"), `Latitude`, `Longitude`, `Altitude`.
+
+
+2. **`Action` (Start pionowy):**
+* Tym razem uzbrój silniki i **użyj komendy `takeoff()**`.
+Zablokuj wątek na 5 sekund, żeby maszyna ustabilizowała się w zawisie.
+
+
+3. **`Offboard` (Faza 1 - Wyjazd z bazy):**
+* Aktywuj Offboard (wystarczy, że dron już wisi).
+* Ustaw wektor przód (`forward_m_s = 4.0f`) przez **4 sekundy**, aby "wyjechać spod wiaty".
+* Zatrzymaj maszynę w powietrzu (wektory zerowe) na **2 sekundy**.
+* Wyłącz Offboard.
+
+
+4. **`Mission` (Faza 2 - Przelot globalny):**
+* Teraz, z punktu w którym dron wisi, stwórz plan misji z dwoma punktami (prędkość w obu 5.0m/s).
+* **Punkt 1:** `lat: 47.3983000`, `lon: 8.5453000`, wysokość: **15.0m** (przelotowy: true).
+* **Punkt 2:** `lat: 47.3985000`, `lon: 8.5458000`, wysokość: **10.0m** (przelotowy: false).
+* Wyślij, wystartuj misję i poczekaj na jej koniec.
+
+
+5. **`Telemetry` (Podwójny Strażnik Asynchroniczny z SQL):**
+* **Strażnik 1 (Bateria):** Jeśli spadnie poniżej 30%, wymuś w locie zapis błędu do bazy SQL:
+ `"LOW_BATTERY"`. (Bez wywoływania RTL, sam zapis alertu).
+* **Strażnik 2 (Wysokość - Geofence):** W callbacku pozycji (`subscribe_position`),
+dodaj warunek bezpieczeństwa (IF). Jeśli w jakimkolwiek momencie lotu wysokość
+ (`relative_altitude_m`) przekroczy **20.0m**, program ma natychmiast zapisać do bazy SQL błąd `"ALT_BREACH"`
+  oraz wymusić awaryjne przerwanie wszystkiego przez **`Action->land()`**.
+
+
+6. **Koniec:**
+* Po dotarciu do Punktu 2 (lub po interwencji strażnika) rozbrój maszynę,
+upewnij się, że SQL wypluje log o udanym zapisie, a destruktor poprawnie zwolni `sqlite3_close()`.
