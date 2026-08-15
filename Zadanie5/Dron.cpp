@@ -48,6 +48,8 @@ Dron::Dron() {
     action = std::make_unique<Action>(system);
     offboard = std::make_unique<Offboard>(system);
     mission = std::make_unique<Mission>(system);
+    gimbal = std::make_unique<Gimbal>(system);
+    camera = std::make_unique<Camera>(system);
 
 
     telemetry->subscribe_battery([this](Telemetry::Battery battery) {
@@ -69,14 +71,7 @@ Dron::Dron() {
 
     telemetry->subscribe_position([this](Telemetry::Position position) {
        if (position.relative_altitude_m>20.0f) {
-           // const char *sqlAltitude = "INSERT INTO FlightAudit (ViolationType) VALUES ('ALT_BREACH');";
-           // char *error = nullptr;
-           // int status = sqlite3_exec(db, sqlAltitude, nullptr, nullptr, &error);
-           // if (status != SQLITE_OK) {
-           //     std::cerr<<"Nie mozna zapisac do bazy blad: "<<error<<std::endl;
-           //     sqlite3_free(error);
-           //     exit(1);
-           // }
+
            awarja = true;
            std::string sql = "INSERT INTO FlightAudit (ViolationType,Latitude,Longitude,Altitude) VALUES ('LOW_BATERY',"+
                         std::to_string(szerokosc) + ", " +
@@ -115,6 +110,9 @@ Dron::~Dron() {
 void Dron::fazaPierwsza() {
 
     Action::Result arm = action->arm();
+    if (arm!= Action::Result::Success) {
+        exit(1);
+    }
 
     Action::Result start = action->takeoff();
     if (start!=Action::Result::Success) {
@@ -231,4 +229,97 @@ void Dron::koniecMisji() {
         exit(1);
     }
 
+}
+
+void Dron::zrobZdjecie() {
+    Gimbal::Result kontorla = gimbal->take_control(Gimbal::ControlMode::Primary);
+    if (kontorla!=Gimbal::Result::Success) {
+        std::cerr<<"Nie udalo sie przejac kontorli nad gimbal\n";
+        exit(1);
+    }
+
+    Gimbal::Result setModeResult = gimbal->set_mode(Gimbal::GimbalMode::YawLock);
+    if (setModeResult!= Gimbal::Result::Success) {
+        std::cerr<<"Nie udalo sie ustawic mode f(zdjecie)\n";
+        exit(1);
+    }
+    //ustawiamy sobie pionowo w dol
+    Gimbal::Result setResult = gimbal->set_pitch_and_yaw(-90.0f, 0.0f);
+    if (setResult!= Gimbal::Result::Success) {
+        std::cerr<<"Nie udalo sie ustawic polozenia gimbala f(zdjecie)\n";
+        exit(1);
+    }
+    sleep_for(seconds(2));
+
+    //Najpierw zrobimy zdjecie
+    Camera::Result cameraModeREsult  = camera->set_mode(Camera::Mode::Photo);
+    if (cameraModeREsult!= Camera::Result::Success) {
+        std::cerr<<"Nie udalo sie ustawic mode phoyo  f(zdjecie)\n";
+        exit(1);
+    }
+    sleep_for(seconds(1));
+
+    Camera::Result takePhotoResult = camera->take_photo();
+    if (takePhotoResult!=Camera::Result::Success) {
+        std::cerr<<"Nie udalo sie zrobic zdjecia f(zdjecie)\n";
+        exit(1);
+    }
+
+    setResult = gimbal->set_pitch_and_yaw(0.0f, 0.0f);
+    if (setResult!= Gimbal::Result::Success) {
+        exit(1);
+    }
+    sleep_for(seconds(2));
+
+   Gimbal::Result gimbResult = gimbal->release_control();
+    if (gimbResult!=Gimbal::Result::Success) {
+        exit(1);
+    }
+}
+
+void Dron::nagrajFilm() {
+    Gimbal::Result takeControlResult = gimbal->take_control(Gimbal::ControlMode::Primary);
+    if (takeControlResult!=Gimbal::Result::Success) {
+        exit(1);
+    }
+
+    Gimbal::Result modeResult = gimbal->set_mode(Gimbal::GimbalMode::YawLock);
+    if (modeResult!=Gimbal::Result::Success) {
+        exit(1);
+    }
+
+    Gimbal::Result setResult = gimbal->set_pitch_and_yaw(-90.0f, 0.0f);
+    if (setResult!= Gimbal::Result::Success) {
+        exit(1);
+    }
+    sleep_for(seconds(2));
+
+    Camera::Result cameraModeResut = camera->set_mode(Camera::Mode::Video);
+    if (cameraModeResut!= Camera::Result::Success) {
+        exit(1);
+    }
+
+    sleep_for(seconds(1));
+
+    Camera::Result viedoResult = camera->start_video();
+    if (viedoResult!=Camera::Result::Success) {
+        exit(1);
+    }
+
+    sleep_for(seconds(10));
+
+    Camera::Result stopVideo = camera->stop_video();
+    if (stopVideo!=Camera::Result::Success) {
+        exit(1);
+    }
+    setResult = gimbal->set_pitch_and_yaw(0.0f, 0.0f);
+    if (setResult!= Gimbal::Result::Success) {
+        exit(1);
+    }
+    sleep_for(seconds(2));
+
+    Gimbal::Result koniecResult = gimbal->release_control();
+    if (koniecResult!=Gimbal::Result::Success) {
+        exit(1);
+    }
 }

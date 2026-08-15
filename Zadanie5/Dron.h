@@ -14,6 +14,10 @@
 #include <mavsdk/plugins/offboard/offboard.h>
 #include <mavsdk/plugins/mission/mission.h>
 #include <sqlite3.h>
+#include <mavsdk/plugins/camera/camera.h>
+#include <mavsdk/plugins/gimbal/gimbal.h>
+
+
 using namespace mavsdk;
 using std::chrono::seconds;
 using std::this_thread::sleep_for;
@@ -31,12 +35,17 @@ class Dron {
     std::atomic<float> wysokosc = 0.0f;
     std::atomic<float> dlguosc =0.0f;
     std::atomic<bool>awarja = false;
+    std::unique_ptr<Gimbal> gimbal;
+    std::unique_ptr<Camera> camera;
+
 public:
     Dron();
     ~Dron();
     void fazaPierwsza();
     void fazaDruga();
     void koniecMisji();
+    void zrobZdjecie();
+    void nagrajFilm();
 };
 
 
