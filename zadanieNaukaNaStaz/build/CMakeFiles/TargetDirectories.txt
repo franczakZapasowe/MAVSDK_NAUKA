@@ -1,0 +1,3 @@
+/home/mf/MAVSDK_ZADANIA/zadanieNaukaNaStaz/build/CMakeFiles/zadanie6.dir
+/home/mf/MAVSDK_ZADANIA/zadanieNaukaNaStaz/build/CMakeFiles/edit_cache.dir
+/home/mf/MAVSDK_ZADANIA/zadanieNaukaNaStaz/build/CMakeFiles/rebuild_cache.dir
