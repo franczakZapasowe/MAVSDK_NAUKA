@@ -1,0 +1,1 @@
+/usr/lib/ccache/c++ -Wl,--dependency-file=CMakeFiles/zadanie7.dir/link.d CMakeFiles/zadanie7.dir/main.cpp.o -o zadanie7  /usr/lib/libmavsdk.so.2.12.4

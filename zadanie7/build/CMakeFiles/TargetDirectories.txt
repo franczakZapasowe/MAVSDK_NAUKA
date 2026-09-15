@@ -1,0 +1,3 @@
+/home/mf/MAVSDK_ZADANIA/zadanie7/build/CMakeFiles/zadanie7.dir
+/home/mf/MAVSDK_ZADANIA/zadanie7/build/CMakeFiles/edit_cache.dir
+/home/mf/MAVSDK_ZADANIA/zadanie7/build/CMakeFiles/rebuild_cache.dir
